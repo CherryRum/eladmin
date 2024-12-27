@@ -80,10 +80,18 @@ public class RedisConfig extends CachingConfigurerSupport {
         // value值的序列化采用fastJsonRedisSerializer
         template.setValueSerializer(fastJsonRedisSerializer);
         template.setHashValueSerializer(fastJsonRedisSerializer);
-        // 全局开启AutoType，这里方便开发，使用全局的方式
-        ParserConfig.getGlobalInstance().setAutoTypeSupport(true);
-        // 建议使用这种方式，小范围指定白名单
-        // ParserConfig.getGlobalInstance().addAccept("me.zhengjie.domain");
+        // fastjson 升级到 1.2.83 后需要指定序列化白名单
+        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.domain");
+        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.service.dto");
+        // 模块内的实体类
+        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.mnt.domain");
+        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.quartz.domain");
+        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.system.domain");
+        // 模块内的 Dto
+        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.mnt.service.dto");
+        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.quartz.service.dto");
+        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.security.service.dto");
+        ParserConfig.getGlobalInstance().addAccept("me.zhengjie.modules.system.service.dto");
         // key的序列化采用StringRedisSerializer
         template.setKeySerializer(new StringRedisSerializer());
         template.setHashKeySerializer(new StringRedisSerializer());
@@ -98,7 +106,7 @@ public class RedisConfig extends CachingConfigurerSupport {
     @Override
     public KeyGenerator keyGenerator() {
         return (target, method, params) -> {
-            Map<String,Object> container = new HashMap<>(4);
+            Map<String,Object> container = new HashMap<>(8);
             Class<?> targetClassClass = target.getClass();
             // 类地址
             container.put("class",targetClassClass.toGenericString());
@@ -119,6 +127,7 @@ public class RedisConfig extends CachingConfigurerSupport {
 
     @Bean
     @Override
+    @SuppressWarnings({"all"})
     public CacheErrorHandler errorHandler() {
         // 异常处理，当Redis发生异常时，打印日志，但是程序正常走
         log.info("初始化 -> [{}]", "Redis CacheErrorHandler");
@@ -144,7 +153,6 @@ public class RedisConfig extends CachingConfigurerSupport {
             }
         };
     }
-
 }
 
 /**
@@ -153,7 +161,7 @@ public class RedisConfig extends CachingConfigurerSupport {
  * @author /
  * @param <T>
  */
- class FastJsonRedisSerializer<T> implements RedisSerializer<T> {
+class FastJsonRedisSerializer<T> implements RedisSerializer<T> {
 
     private final Class<T> clazz;
 
@@ -172,7 +180,7 @@ public class RedisConfig extends CachingConfigurerSupport {
 
     @Override
     public T deserialize(byte[] bytes) {
-        if (bytes == null || bytes.length <= 0) {
+        if (bytes == null || bytes.length == 0) {
             return null;
         }
         String str = new String(bytes, StandardCharsets.UTF_8);

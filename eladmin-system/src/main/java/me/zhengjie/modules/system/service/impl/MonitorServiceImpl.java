@@ -15,11 +15,10 @@
  */
 package me.zhengjie.modules.system.service.impl;
 
-import cn.hutool.core.date.BetweenFormater;
+import cn.hutool.core.date.BetweenFormatter.Level;
 import cn.hutool.core.date.DateUtil;
-import me.zhengjie.exception.BadRequestException;
 import me.zhengjie.modules.system.service.MonitorService;
-import me.zhengjie.utils.ElAdminConstant;
+import me.zhengjie.utils.ElConstant;
 import me.zhengjie.utils.FileUtil;
 import me.zhengjie.utils.StringUtils;
 import org.springframework.stereotype.Service;
@@ -79,7 +78,7 @@ public class MonitorServiceImpl implements MonitorService {
         long available = 0, total = 0;
         for (OSFileStore fs : fsArray){
             // windows 需要将所有磁盘分区累加，linux 和 mac 直接累加会出现磁盘重复的问题，待修复
-            if(osName.toLowerCase().startsWith(ElAdminConstant.WIN)) {
+            if(osName.toLowerCase().startsWith(ElConstant.WIN)) {
                 available += fs.getUsableSpace();
                 total += fs.getTotalSpace();
             } else {
@@ -149,9 +148,15 @@ public class MonitorServiceImpl implements MonitorService {
         cpuInfo.put("logic", processor.getLogicalProcessorCount() + "个逻辑CPU");
         // CPU信息
         long[] prevTicks = processor.getSystemCpuLoadTicks();
-        // 等待1秒...
-        Util.sleep(1000);
+        // 默认等待300毫秒...
+        long time = 300;
+        Util.sleep(time);
         long[] ticks = processor.getSystemCpuLoadTicks();
+        while (Arrays.toString(prevTicks).equals(Arrays.toString(ticks)) && time < 1000){
+            time += 25;
+            Util.sleep(25);
+            ticks = processor.getSystemCpuLoadTicks();
+        }
         long user = ticks[CentralProcessor.TickType.USER.getIndex()] - prevTicks[CentralProcessor.TickType.USER.getIndex()];
         long nice = ticks[CentralProcessor.TickType.NICE.getIndex()] - prevTicks[CentralProcessor.TickType.NICE.getIndex()];
         long sys = ticks[CentralProcessor.TickType.SYSTEM.getIndex()] - prevTicks[CentralProcessor.TickType.SYSTEM.getIndex()];
@@ -177,7 +182,7 @@ public class MonitorServiceImpl implements MonitorService {
         long time = ManagementFactory.getRuntimeMXBean().getStartTime();
         Date date = new Date(time);
         // 计算项目运行时间
-        String formatBetween = DateUtil.formatBetween(date, new Date(),BetweenFormater.Level.HOUR);
+        String formatBetween = DateUtil.formatBetween(date, new Date(), Level.HOUR);
         // 系统信息
         systemInfo.put("os", os.toString());
         systemInfo.put("day", formatBetween);

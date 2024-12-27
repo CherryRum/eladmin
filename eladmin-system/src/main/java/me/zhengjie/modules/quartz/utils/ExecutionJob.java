@@ -33,12 +33,13 @@ import org.quartz.JobExecutionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.quartz.QuartzJobBean;
 import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * 参考人人开源，https://gitee.com/renrenio/renren-security
+ * 参考人人开源，<a href="https://gitee.com/renrenio/renren-security">...</a>
  * @author /
  * @date 2019-01-07
  */
@@ -47,10 +48,11 @@ public class ExecutionJob extends QuartzJobBean {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
+    // 此处仅供参考，可根据任务执行情况自定义线程池参数
+    private final ThreadPoolTaskExecutor executor = SpringContextHolder.getBean("elAsync");
+
     @Override
     public void executeInternal(JobExecutionContext context) {
-        // 创建单个线程
-        ExecutorService executor = Executors.newSingleThreadExecutor();
         // 获取任务
         QuartzJob quartzJob = (QuartzJob) context.getMergedJobDataMap().get(QuartzJob.JOB_KEY);
         // 获取spring bean
@@ -112,7 +114,6 @@ public class ExecutionJob extends QuartzJobBean {
             }
         } finally {
             quartzLogRepository.save(log);
-            executor.shutdown();
         }
     }
 
@@ -123,7 +124,7 @@ public class ExecutionJob extends QuartzJobBean {
         data.put("task", quartzJob);
         data.put("msg", msg);
         TemplateEngine engine = TemplateUtil.createEngine(new TemplateConfig("template", TemplateConfig.ResourceMode.CLASSPATH));
-        Template template = engine.getTemplate("email/taskAlarm.ftl");
+        Template template = engine.getTemplate("taskAlarm.ftl");
         emailVo.setContent(template.render(data));
         List<String> emails = Arrays.asList(quartzJob.getEmail().split("[,，]"));
         emailVo.setTos(emails);

@@ -16,19 +16,18 @@
 package me.zhengjie.modules.system.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import me.zhengjie.utils.PageResult;
 import me.zhengjie.config.FileProperties;
 import me.zhengjie.exception.BadRequestException;
 import me.zhengjie.modules.security.service.OnlineUserService;
-import me.zhengjie.modules.security.service.UserCacheClean;
+import me.zhengjie.modules.security.service.UserCacheManager;
 import me.zhengjie.modules.system.domain.User;
 import me.zhengjie.exception.EntityExistException;
 import me.zhengjie.exception.EntityNotFoundException;
 import me.zhengjie.modules.system.repository.UserRepository;
 import me.zhengjie.modules.system.service.UserService;
-import me.zhengjie.modules.system.service.dto.JobSmallDto;
-import me.zhengjie.modules.system.service.dto.RoleSmallDto;
-import me.zhengjie.modules.system.service.dto.UserDto;
-import me.zhengjie.modules.system.service.dto.UserQueryCriteria;
+import me.zhengjie.modules.system.service.dto.*;
+import me.zhengjie.modules.system.service.mapstruct.UserLoginMapper;
 import me.zhengjie.modules.system.service.mapstruct.UserMapper;
 import me.zhengjie.utils.*;
 import org.springframework.cache.annotation.CacheConfig;
@@ -58,11 +57,12 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final FileProperties properties;
     private final RedisUtils redisUtils;
-    private final UserCacheClean userCacheClean;
+    private final UserCacheManager userCacheManager;
     private final OnlineUserService onlineUserService;
+    private final UserLoginMapper userLoginMapper;
 
     @Override
-    public Object queryAll(UserQueryCriteria criteria, Pageable pageable) {
+    public PageResult<UserDto> queryAll(UserQueryCriteria criteria, Pageable pageable) {
         Page<User> page = userRepository.findAll((root, criteriaQuery, criteriaBuilder) -> QueryHelp.getPredicate(root, criteria, criteriaBuilder), pageable);
         return PageUtil.toPage(page.map(userMapper::toDto));
     }
@@ -120,6 +120,10 @@ public class UserServiceImpl implements UserService {
             redisUtils.del(CacheKey.MENU_USER + resources.getId());
             redisUtils.del(CacheKey.ROLE_AUTH + resources.getId());
         }
+        // 修改部门会影响 数据权限
+        if (!Objects.equals(resources.getDept(),user.getDept())) {
+            redisUtils.del(CacheKey.DATA_USER + resources.getId());
+        }
         // 如果用户被禁用，则清除用户登录信息
         if(!resources.getEnabled()){
             onlineUserService.kickOutForUsername(resources.getUsername());
@@ -176,10 +180,26 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public UserLoginDto getLoginData(String userName) {
+        User user = userRepository.findByUsername(userName);
+        if (user == null) {
+            throw new EntityNotFoundException(User.class, "name", userName);
+        } else {
+            return userLoginMapper.toDto(user);
+        }
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void updatePass(String username, String pass) {
         userRepository.updatePass(username, pass, new Date());
         flushCache(username);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void resetPwd(Set<Long> ids, String pwd) {
+        userRepository.resetPwd(ids, pwd);
     }
 
     @Override
@@ -252,6 +272,6 @@ public class UserServiceImpl implements UserService {
      * @param username /
      */
     private void flushCache(String username) {
-        userCacheClean.cleanUserCache(username);
+        userCacheManager.cleanUserCache(username);
     }
 }
